@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-
+require 'pathname'
 require 'starlark_compiler/build_file'
 require 'cocoapods/bazel/config'
 require 'cocoapods/bazel/target'
@@ -60,10 +60,64 @@ module Pod
 
           bazel_targets = [default_target] + targets_without_library_specification
 
-          bazel_targets.each do |t|
-            load = config.load_for(macro: t.type)
-            build_file.add_load(of: load[:rule], from: load[:load])
-            build_file.add_target StarlarkCompiler::AST::FunctionCall.new(load[:rule], **t.to_rule_kwargs)
+          if package.start_with?('Pods') or not config.generate_macro
+            bazel_targets.each do |t|
+              load = config.load_for(macro: t.type)
+              build_file.add_load(of: load[:rule], from: load[:load])
+              build_file.add_target StarlarkCompiler::AST::FunctionCall.new(load[:rule], **t.to_rule_kwargs)
+            end
+          else
+            # Generate a macro file at generated.bzl instead of BUILD.bazel
+            build_file.path = Pathname.new(build_file.path).dirname.join('generated.bzl')
+            bazel_targets.each do |t|
+              load = config.load_for(macro: t.type)
+              build_file.add_load(of: load[:rule], from: load[:load])
+            end
+            # Alias glob as native.glob since it's not a BUILD file
+            build_file.add_variable_assignment(name: 'glob', var: StarlarkCompiler::AST::VariableReference.new('native.glob'))
+            # non test targets can be individually defined
+            bazel_targets.select { |t| not t.type.include?('unit_test') || t.type.include?('ui_test')}.each do |t|
+              rule_kwargs = t.to_rule_kwargs
+              rule_kwargs[:deps] = t.starlark {
+                StarlarkCompiler::AST::PlusOperator.new(
+                  rule_kwargs[:deps] == nil ? [] : rule_kwargs[:deps], 
+                  StarlarkCompiler::AST::VariableReference.new('deps')
+                )
+              }
+              build_file.add_target StarlarkCompiler::AST::FunctionDeclaration.new(
+                rule_kwargs.fetch(:name).gsub('-', '_'),
+                [
+                  StarlarkCompiler::AST::VariableReference.new('deps')
+                ],
+                [
+                  StarlarkCompiler::AST::FunctionCall.new(config.load_for(macro: t.type)[:rule], **rule_kwargs)
+                ],
+                **rule_kwargs
+              )
+            end
+            # Group Unit Tests into one macro
+            if not bazel_targets.select { |t| t.type.include?('unit_test')}.empty?
+              build_file.add_target StarlarkCompiler::AST::FunctionDeclaration.new(
+                'unit_tests',
+                [],
+                bazel_targets.select { |t| t.type.include?('unit_test')}.map { |t|
+                  StarlarkCompiler::AST::FunctionCall.new(config.load_for(macro: t.type)[:rule], **t.to_rule_kwargs)
+                },
+                **{:name => 'unit_tests'}
+              )
+            end
+            # Group UI Tests into one macro
+            if not bazel_targets.select { |t| t.type.include?('ui_test')}.empty?
+              build_file.add_target StarlarkCompiler::AST::FunctionDeclaration.new(
+                'ui_tests',
+                [],
+                bazel_targets.select { |t| t.type.include?('ui_test')}.map { |t|
+                  StarlarkCompiler::AST::FunctionCall.new(config.load_for(macro: t.type)[:rule], **t.to_rule_kwargs)
+                },
+                **{:name => 'ui_tests'}
+              )
+            end
+
           end
         end
 
@@ -139,9 +193,11 @@ module Pod
       args += %w[-type build]
 
       executable, *args = args
-      Pod::Executable.execute_command executable,
-                                      args + build_files.each_key.map { |d| File.join workspace, d, 'BUILD.bazel' },
-                                      true
+      Pod::Executable.execute_command(
+        executable,
+        args + build_files.each_key.map { |d| File.join(workspace, d, 'BUILD.bazel') },
+        true
+      )
     end
   end
 end

@@ -12,3 +12,5 @@ gem 'rspec', '~> 3.9'
 gem 'rubocop', '~> 0.78'
 
 gem 'cocoapods', '~> 1.9'
+
+gem 'starlark_compiler', :git => 'https://github.com/hborawski/starlark_compiler.git', :branch => 'build-file-path'

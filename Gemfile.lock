@@ -1,3 +1,10 @@
+GIT
+  remote: https://github.com/hborawski/starlark_compiler.git
+  revision: be2f8a7422a9f26ee50d4548d50dcb0286341573
+  branch: build-file-path
+  specs:
+    starlark_compiler (0.4.0)
+
 PATH
   remote: .
   specs:
@@ -113,7 +120,6 @@ GEM
       unicode-display_width (>= 1.4.0, < 1.7)
     ruby-macho (1.4.0)
     ruby-progressbar (1.10.1)
-    starlark_compiler (0.3.0)
     thread_safe (0.3.6)
     typhoeus (1.4.0)
       ethon (>= 0.9.0)
@@ -140,6 +146,7 @@ DEPENDENCIES
   rake (~> 12.3)
   rspec (~> 3.9)
   rubocop (~> 0.78)
+  starlark_compiler!
 
 BUNDLED WITH
-   2.2.15
+   2.2.16

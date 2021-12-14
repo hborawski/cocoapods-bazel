@@ -49,7 +49,10 @@ module Pod
         # Becomes
         #
         # @Pods//SomePod
-        :external_repository
+        :external_repository,
+        # When enabled, local pods (those with a relative path) will generate macros instead of a build file
+        # to allow for adding additional behavior to a build file, and calling the macro when needed
+        :generate_macro
       ].freeze
       private_constant :PLUGIN_KEY
       DEFAULTS = {
@@ -63,7 +66,8 @@ module Pod
         default_xcconfigs: {}.freeze,
         features: {
           experimental_deps_debug_and_release: false,
-          external_repository: false
+          external_repository: false,
+          generate_macro: false
         },
       }.with_indifferent_access.freeze
 
@@ -122,6 +126,9 @@ module Pod
       end
       def external_repository
         to_h[:features][:external_repository]
+      end
+      def generate_macro
+        to_h[:features][:generate_macro]
       end
     end
   end
